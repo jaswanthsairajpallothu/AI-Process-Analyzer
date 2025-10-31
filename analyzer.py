@@ -95,7 +95,7 @@ class Analyzer:
         for i, meta in enumerate(metadata):
             vector = X[i] if self.feature_names is not None else X[i]
             s = self.score(vector.tolist())
-            # simple explanation: top 2 features with largest deviation from pool mean
+            # top 2 features with largest deviation from pool mean
             explanation = self.simple_explain(vector)
             r = {'pid': meta['pid'], 'name': meta.get('name'), 'score': s, 'explanation': explanation, 'last_sample': meta['last_sample']}
             results.append(r)
@@ -104,7 +104,7 @@ class Analyzer:
         return results[:top_n]
 
     def simple_explain(self, vector):
-        # crude explain: find features with largest z-score relative to training pool
+        # find features with largest z-score relative to training pool
         if self.feature_names is None or len(self.train_pool) < 2:
             return "Insufficient data for explanation"
         import numpy as np
