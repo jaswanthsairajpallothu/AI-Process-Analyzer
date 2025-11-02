@@ -4,3 +4,4 @@ psutil
 scikit-learn
 numpy
 pandas
+jinja2
