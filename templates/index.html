@@ -29,9 +29,14 @@
   </div>
   <script>
     // simple chart placeholder
-    Plotly.newPlot('sys_chart', [{
-      x: [0], y: [0], name: 'CPU %'
-    }], {title:'System CPU (demo)'});
+    Plotly.newPlot('sys_chart', [
+      { y: [], type: 'line', name: 'CPU %', line: {color: 'blue'} },
+      { y: [], type: 'line', name: 'Memory %', line: {color: 'green'} }
+    ], {
+        title: 'Live System Metrics',
+        xaxis: {title: 'Time'},
+        yaxis: {range: [0, 100], title: 'Usage %'}
+    });
 
     function renderFlags(anomalies) {
       let html = '<table><tr><th>PID</th><th>Name</th><th>Score</th><th>Reason</th></tr>';
@@ -52,14 +57,17 @@
     // connect websocket
     const ws = new WebSocket(`ws://${window.location.host}/ws/stream`);
     ws.onmessage = (evt) => {
-      try {
         const data = JSON.parse(evt.data);
         const anomalies = data.anomalies || [];
         renderFlags(anomalies);
-      } catch(e) {
-        console.error(e);
-      }
-    }
+
+    // Add this block to update the chart
+        if (data.system) {
+            Plotly.extendTraces('sys_chart', {
+                y: [[data.system.cpu_percent], [data.system.mem_percent]]
+            }, [0, 1]); // 0 = 1st trace (CPU), 1 = 2nd trace (Mem)
+        }
+    };
     ws.onopen = () => console.log("Connected to server stream");
     ws.onclose = () => console.log("Disconnected");
   </script>
