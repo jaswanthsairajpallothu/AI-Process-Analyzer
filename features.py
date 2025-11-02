@@ -14,7 +14,7 @@ def window_to_features(samples):
     
     # Define the core metrics to be analyzed
     # Define which columns are standard metrics and which are cumulative counters
-std_cols = ['cpu_percent', 'memory_rss', 'memory_percent', 'threads', 'open_files']
+std_cols = ['cpu_percent', 'memory_rss', 'memory_percent', 'threads']
 io_cols = ['read_bytes', 'write_bytes']
 
 for c in std_cols + io_cols:
