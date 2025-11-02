@@ -21,7 +21,9 @@ class Analyzer:
         # Thread lock to protect shared resources (model, train_pool)
         self.lock = threading.Lock() 
         # Rolling pool of feature vectors for training. Limits memory to 1000 samples.
-        self.train_pool = deque(maxlen=1000) 
+        self.train_pool = deque(maxlen=1000)
+        self.pool_means = None  # To cache training pool mean
+        self.pool_stds = None   # To cache training pool std dev 
         self.running = True
         self._start_retrainer()
 
@@ -46,7 +48,10 @@ class Analyzer:
             model = IsolationForest(n_estimators=100, contamination=0.01, random_state=42)
             try:
                 model.fit(X)
-                self.model = model # Update the model reference after successful fit
+                self.model = model
+# Cache pool statistics for faster explanations
+                self.pool_means = X.mean(axis=0)
+                self.pool_stds = X.std(axis=0) + 1e-6 # Add epsilon to avoid divide by zero # Update the model reference after successful fit
             except Exception as e:
                 print("Training failed:", e)
 
@@ -112,12 +117,13 @@ class Analyzer:
         Identifies the two features with the largest absolute Z-score deviation 
         from the training pool's mean.
         """
-        if self.feature_names is None or len(self.train_pool) < 2:
-            return "Insufficient data for explanation"
-            
-        pool = np.array(self.train_pool)
-        means = pool.mean(axis=0)
-        stds = pool.std(axis=0) + 1e-6
+        if self.feature_names is None or self.pool_means is None:
+            return "Awaiting model training for explanation"
+
+# Use cached statistics for massive performance gain
+        import numpy as np
+        means = self.pool_means
+        stds = self.pool_stds
         z = (np.array(vector) - means) / stds
         
         # Get indices of the top 2 features with the largest absolute deviation
