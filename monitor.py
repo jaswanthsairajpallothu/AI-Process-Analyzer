@@ -1,53 +1,60 @@
 # monitor.py
 import time
-import psutil
+import psutil 
 import threading
 from collections import defaultdict, deque
 import traceback
 
-SAMPLE_INTERVAL = 1.0  # seconds
+SAMPLE_INTERVAL = 1.0  # seconds between samples
 WINDOW_SIZE = 60       # number of samples to keep per process
 
 class ProcessStore:
     """
-    Keeps sliding window of recent samples per pid.
-    Each sample is a dict with timestamp and metrics.
+    Manages a sliding window of recent performance samples for each PID.
+    Uses deque for efficient window management.
     """
     def __init__(self, window_size=WINDOW_SIZE):
         self.window_size = window_size
+        # Store: {pid: deque of samples}
         self.store = defaultdict(lambda: deque(maxlen=self.window_size))
-        self.lock = threading.Lock()
+        self.lock = threading.Lock() # Lock for thread-safe access
 
     def add_sample(self, pid, sample):
+        """Adds a new sample, oldest sample is automatically dropped by deque."""
         with self.lock:
             self.store[pid].append(sample)
 
     def get_snapshot(self):
-        """
-        Return a copy of the store (for safe consumption).
-        """
+        """Returns a thread-safe copy of the store for external use."""
         with self.lock:
+            # Convert deques to lists before returning
             return {pid: list(deque_obj) for pid, deque_obj in self.store.items()}
 
     def cleanup_dead(self):
-        # Optionally remove PIDs with empty windows or dead processes
+        """Removes entries for dead processes with empty sample windows."""
         with self.lock:
             alive_pids = {p.pid for p in psutil.process_iter(attrs=[])}
             for pid in list(self.store.keys()):
+                # If process is dead and no samples remain
                 if pid not in alive_pids and len(self.store[pid]) == 0:
                     del self.store[pid]
 
 def sample_once(store: ProcessStore):
+    """
+    Collects a single set of metrics for all running processes.
+    """
     now = time.time()
     for proc in psutil.process_iter(attrs=['pid', 'name', 'username', 'cmdline']):
         try:
             pid = proc.info['pid']
-            cpu_percent = proc.cpu_percent(interval=None)  # non-blocking
+            cpu_percent = proc.cpu_percent(interval=None) # Non-blocking CPU usage
             mem_info = proc.memory_info()
             mem_percent = proc.memory_percent()
-            io_counters = proc.io_counters() if proc.is_running() else None
+            # Safely fetch IO and file info
+            io_counters = proc.io_counters() if proc.is_running() else None 
             num_threads = proc.num_threads()
             open_files = len(proc.open_files()) if proc.is_running() else 0
+            
             sample = {
                 'timestamp': now,
                 'pid': pid,
@@ -64,16 +71,21 @@ def sample_once(store: ProcessStore):
             }
             store.add_sample(pid, sample)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+            continue # Ignore transient errors
         except Exception:
             traceback.print_exc()
             continue
 
 def start_sampling(store: ProcessStore, interval=SAMPLE_INTERVAL):
+    """
+    Starts a background thread to continuously collect samples.
+    """
     def run():
         while True:
             sample_once(store)
             time.sleep(interval)
-    t = threading.Thread(target=run, daemon=True)
+            
+    # Daemon thread ensures it closes when the main program exits
+    t = threading.Thread(target=run, daemon=True) 
     t.start()
     return t
