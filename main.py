@@ -1,5 +1,6 @@
 # main.py
 import uvicorn
+import psutil
 import time
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
@@ -79,16 +80,23 @@ async def websocket_endpoint(websocket: WebSocket):
             snap = store.get_snapshot()
             # Run the anomaly detection
             results = analyzer.analyze_snapshot(snap, top_n=20)
-            
+
+    # Get global system stats
+            global_cpu = psutil.cpu_percent(interval=None)
+            global_mem = psutil.virtual_memory().percent
+
             out = {
                 "timestamp": time.time(),
                 "summary": {
                     "num_procs": len(snap)
                 },
-                "anomalies": results
+                "system": {
+                    "cpu_percent": global_cpu,
+                    "mem_percent": global_mem
+                },
+        "anomalies": results
             }
-            # Broadcast results to all connected clients
-            await manager.broadcast(out) 
+            await manager.broadcast(out)
             # Wait for 1 second before generating the next analysis
             await asyncio.sleep(1.0) 
             
