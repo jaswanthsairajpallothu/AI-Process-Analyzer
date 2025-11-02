@@ -2,8 +2,9 @@
 import uvicorn
 import time
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from monitor import ProcessStore, start_sampling # Data collection/storage
 from analyzer import Analyzer # Anomaly detection logic
@@ -16,6 +17,7 @@ store = ProcessStore(window_size=60)
 start_sampling(store, interval=1.0) # Start the monitoring thread
 # Initialize the analyzer, which starts its own background retraining thread
 analyzer = Analyzer(retrain_interval=10) # faster retrain for demo
+templates = Jinja2Templates(directory="templates")
 
 # --- WebSocket Connection Management ---
 
@@ -50,12 +52,10 @@ manager = ConnectionManager()
 
 # --- FastAPI Endpoints ---
 
-@app.get("/")
-async def root():
-    """Serves the main HTML page for the application."""
-    html_content = open("templates/index.html").read()
-    return HTMLResponse(html_content)
-
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+    
 @app.get("/api/system_snapshot")
 async def get_system_snapshot():
     """Provides a basic summary of the processes currently being tracked."""
