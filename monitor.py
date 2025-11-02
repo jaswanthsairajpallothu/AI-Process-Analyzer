@@ -31,13 +31,22 @@ class ProcessStore:
             return {pid: list(deque_obj) for pid, deque_obj in self.store.items()}
 
     def cleanup_dead(self):
-        """Removes entries for dead processes with empty sample windows."""
-        with self.lock:
-            alive_pids = {p.pid for p in psutil.process_iter(attrs=[])}
-            for pid in list(self.store.keys()):
-                # If process is dead and no samples remain
-                if pid not in alive_pids and len(self.store[pid]) == 0:
-                    del self.store[pid]
+    # Get alive PIDs *outside* the lock. This is a slow operation
+    # and should not block the store.
+    try:
+        alive_pids = {p.pid for p in psutil.process_iter(attrs=[])}
+    except psutil.Error:
+        # Can fail if system is busy, just skip this cycle
+        return
+
+    # Now, acquire the lock for the *short* operation
+    # of modifying the dictionary.
+    with self.lock:
+        for pid in list(self.store.keys()):
+            # This is the correct logic:
+            # If a PID from our store is no longer alive, remove it.
+            if pid not in alive_pids:
+                del self.store[pid]
 
 def sample_once(store: ProcessStore):
     """
@@ -81,11 +90,17 @@ def start_sampling(store: ProcessStore, interval=SAMPLE_INTERVAL):
     Starts a background thread to continuously collect samples.
     """
     def run():
-        while True:
-            sample_once(store)
-            time.sleep(interval)
-            
-    # Daemon thread ensures it closes when the main program exits
-    t = threading.Thread(target=run, daemon=True) 
+    cleanup_counter = 0
+    while True:
+        sample_once(store)
+
+        # Add this block to periodically clean up dead PIDs
+        cleanup_counter += 1
+        if cleanup_counter > 60:  # Cleanup every 60 seconds
+            store.cleanup_dead()
+            cleanup_counter = 0
+
+        time.sleep(interval)
+t = threading.Thread(target=run, daemon=True)
     t.start()
     return t
