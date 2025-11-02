@@ -1,67 +1,230 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>AI Process Performance Analyzer</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <meta charset="UTF-8">
+  <title>AI Process Analyzer</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 12px; }
-    #top { display:flex; gap:16px; }
-    #anomalies { width: 40%; }
-    #charts { width: 60%; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { padding:8px; border-bottom:1px solid #ddd; }
-    .score-high { color: red; font-weight: bold; }
-    .score-medium { color: orange; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background-color: #f5f7fa; color: #222; }
+
+    header {
+      background: linear-gradient(90deg, #005bea, #00c6fb);
+      color: white;
+      text-align: center;
+      padding: 20px 0;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+      font-size: 28px;
+      letter-spacing: 1px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { text-shadow: 0 0 5px #fff; }
+      50% { text-shadow: 0 0 20px #00c6fb; }
+      100% { text-shadow: 0 0 5px #fff; }
+    }
+
+    .container { width: 90%; margin: 30px auto; }
+
+    /* ===== SYSTEM STATS ===== */
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      flex: 1;
+      margin: 10px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      text-align: center;
+      padding: 20px;
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover { transform: scale(1.05); }
+
+    .progress-circle {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: conic-gradient(#00c6fb var(--percent), #e0e0e0 0);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .progress-circle span {
+      position: absolute;
+      font-weight: bold;
+      color: #333;
+    }
+
+    /* ===== PROCESS TABLE ===== */
+    .table-container {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+
+    th { background: #005bea; color: white; }
+
+    tr:hover { background-color: #f1f9ff; }
+
+    .status-normal { color: green; font-weight: bold; }
+    .status-anomaly { color: red; font-weight: bold; }
+
+    /* ===== AI PANEL ===== */
+    .ai-panel {
+      background: #fefefe;
+      border-left: 5px solid #005bea;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 30px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    footer {
+      text-align: center;
+      padding: 15px;
+      background: #005bea;
+      color: white;
+      margin-top: 30px;
+      font-size: 14px;
+      border-top: 2px solid #00c6fb;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 10px 20px;
+      background: #005bea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background: #00c6fb;
+    }
   </style>
 </head>
 <body>
-  <h2>AI Process Performance Analyzer — Live</h2>
-  <div id="top">
-    <div id="anomalies">
-      <h3>Flagged Processes</h3>
-      <div id="flag_list"></div>
+
+<header>
+  <h1>AI Process Analyzer Dashboard</h1>
+  <p>Real-Time Monitoring & Anomaly Detection using Machine Learning</p>
+</header>
+
+<div class="container">
+  <!-- System Stats -->
+  <section class="stats">
+    <div class="card">
+      <h3>CPU Usage</h3>
+      <div class="progress-circle" id="cpu" style="--percent: 40%;">
+        <span id="cpu-text">40%</span>
+      </div>
     </div>
-    <div id="charts">
-      <h3>System Snapshot</h3>
-      <div id="sys_chart"></div>
+    <div class="card">
+      <h3>Memory Usage</h3>
+      <div class="progress-circle" id="mem" style="--percent: 55%;">
+        <span id="mem-text">55%</span>
+      </div>
     </div>
+    <div class="card">
+      <h3>Disk Usage</h3>
+      <div class="progress-circle" id="disk" style="--percent: 30%;">
+        <span id="disk-text">30%</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Process Table -->
+  <div class="table-container">
+    <h2>Process Details</h2>
+    <button class="btn" onclick="fetchData()">Start Monitoring</button>
+    <table id="processTable">
+      <thead>
+        <tr>
+          <th>PID</th>
+          <th>Process Name</th>
+          <th>CPU (%)</th>
+          <th>Memory (%)</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
-  <script>
-    // simple chart placeholder
-    Plotly.newPlot('sys_chart', [{
-      x: [0], y: [0], name: 'CPU %'
-    }], {title:'System CPU (demo)'});
 
-    function renderFlags(anomalies) {
-      let html = '<table><tr><th>PID</th><th>Name</th><th>Score</th><th>Reason</th></tr>';
-      for (const a of anomalies) {
-        let cls = a.score > 0.75 ? 'score-high' : (a.score > 0.4 ? 'score-medium' : '');
-        let expl = a.explanation;
-        if (Array.isArray(expl)) {
-          expl = expl.map(e => `${e[0]} (z=${e[1].toFixed(2)})`).join('; ');
-        } else {
-          expl = JSON.stringify(expl);
-        }
-        html += `<tr><td>${a.pid}</td><td>${a.name||''}</td><td class="${cls}">${a.score.toFixed(3)}</td><td>${expl}</td></tr>`;
-      }
-      html += '</table>';
-      document.getElementById('flag_list').innerHTML = html;
-    }
+  <!-- AI Insights -->
+  <div class="ai-panel" id="aiPanel">
+    <h2>AI Insights</h2>
+    <p>No anomalies detected yet. Click "Start Monitoring" to begin analysis.</p>
+  </div>
+</div>
 
-    // connect websocket
-    const ws = new WebSocket(`ws://${window.location.host}/ws/stream`);
-    ws.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        const anomalies = data.anomalies || [];
-        renderFlags(anomalies);
-      } catch(e) {
-        console.error(e);
-      }
+<footer>
+  Developed by Jaswanth Sai & Teammate | AI Process Analyzer © 2025
+</footer>
+
+<script>
+  async function fetchData() {
+    const response = await fetch('/monitor');
+    const data = await response.json();
+    const tableBody = document.querySelector('#processTable tbody');
+    const aiPanel = document.querySelector('#aiPanel');
+    tableBody.innerHTML = '';
+
+    let anomalies = [];
+
+    data.forEach(proc => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${proc.pid}</td>
+        <td>${proc.name}</td>
+        <td>${proc.cpu}</td>
+        <td>${proc.memory}</td>
+        <td class="${proc.status === 'Anomaly' ? 'status-anomaly' : 'status-normal'}">${proc.status}</td>
+      `;
+      tableBody.appendChild(row);
+
+      if (proc.status === 'Anomaly') anomalies.push(proc);
+    });
+
+    if (anomalies.length > 0) {
+      aiPanel.innerHTML = `
+        <h2>AI Insights</h2>
+        <p><b>${anomalies.length}</b> anomalies detected.</p>
+        <ul>${anomalies.map(a => `<li>Process <b>${a.name}</b> (PID ${a.pid}) shows unusual CPU usage: ${a.cpu}%</li>`).join('')}</ul>
+      `;
+    } else {
+      aiPanel.innerHTML = `<h2>AI Insights</h2><p>All processes are running normally.</p>`;
     }
-    ws.onopen = () => console.log("Connected to server stream");
-    ws.onclose = () => console.log("Disconnected");
-  </script>
+  }
+</script>
+
 </body>
 </html>
